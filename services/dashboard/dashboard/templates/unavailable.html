@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Starting up · partner-file-gateway{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>The pipeline is not reachable yet</h1>
+  <p>The dashboard could not read the audit trail ({{ error }}). If you are running this locally, start the stack with <code>make demo</code>.</p>
+</section>
+{% endblock %}

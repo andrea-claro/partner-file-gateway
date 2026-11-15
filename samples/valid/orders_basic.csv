@@ -1,0 +1,4 @@
+order_id,sku,quantity,unit_price,currency
+ORD-1001,SKU-RED-01,2,19.90,CHF
+ORD-1002,SKU-BLU-07,1,149.00,CHF
+ORD-1003,SKU-GRN-03,10,4.50,EUR

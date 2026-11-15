@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="intro">
+  <h1>Event-driven managed file transfer</h1>
+  <p>Partners upload files over SFTP with key-only authentication. Every file is fingerprinted, checked against the partner's rules and content schema, then delivered to <code>processed/</code> or moved to <code>quarantine/</code>. Each step is recorded in an audit trail.</p>
+</section>
+
+<section class="cards" aria-label="Transfers in the last 24 hours">
+  {% for status in statuses %}
+  <div class="card card-{{ status|lower }}">
+    <span class="card-label">{{ status|title }}</span>
+    <span class="card-value">{{ summary.last_24h[status] }}</span>
+    <span class="card-sub">last 24 h</span>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="panel simulate">
+  <div class="simulate-text">
+    <h2>Try it</h2>
+    <p>Uploads a random sample file over SFTP as the demo partner. About 7 in 10 samples are valid. The result appears below within a few seconds.</p>
+  </div>
+  <div class="simulate-action">
+    <button class="btn" type="button" hx-post="/simulate" hx-target="#simulate-result" hx-swap="innerHTML" hx-disabled-elt="this">Simulate a partner upload</button>
+    <div id="simulate-result" class="simulate-result" aria-live="polite"></div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Latest transfers</h2>
+    <a href="/transfers">All transfers &rarr;</a>
+  </div>
+  {% set refresh_url = "/transfers?limit=10" %}
+  {% include "_transfer_table.html" %}
+</section>
+{% endblock %}

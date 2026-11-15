@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Event-driven managed file transfer demo: SFTP, S3, EventBridge, Step Functions, Lambda, DynamoDB, SQS.">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "selfRequestsOnly": true, "responseHandling": [{"code": "204", "swap": false}, {"code": "[23]..", "swap": true}, {"code": "(429|502)", "swap": true, "error": false}, {"code": "[45]..", "swap": false, "error": true}]}'>
+  <title>{% block title %}partner-file-gateway{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx-2.0.11.min.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">&#8645;</span>partner-file-gateway</a>
+    <nav aria-label="Main">
+      <a href="/" {% if active == "overview" %}aria-current="page"{% endif %}>Overview</a>
+      <a href="/transfers" {% if active == "transfers" %}aria-current="page"{% endif %}>Transfers</a>
+      <a href="/partners" {% if active == "partners" %}aria-current="page"{% endif %}>Partners</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    <p>Portfolio demo with fictitious data. Read-only.</p>
+    <p class="pipeline">SFTP &rarr; S3 &rarr; EventBridge &rarr; Step Functions &rarr; Lambda &rarr; DynamoDB + SQS, emulated locally with SFTPGo and LocalStack.</p>
+  </footer>
+</body>
+</html>

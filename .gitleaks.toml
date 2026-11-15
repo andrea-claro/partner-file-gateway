@@ -1,0 +1,12 @@
+# gitleaks configuration: the default rules plus a narrow allowlist for prose
+# that the generic-api-key rule mistakes for a key. Never allowlist real values.
+title = "partner-file-gateway"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Plain words in documentation, not secrets"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+regexes = ['''^S3-compatible$''']

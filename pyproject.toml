@@ -1,0 +1,35 @@
+# Tool configuration only. Each component pins its runtime dependencies:
+#   requirements/dev.txt             tests, lint and the pfg CLI (tools image)
+#   services/dashboard/requirements.txt
+#   Lambdas use the boto3 shipped with the AWS Lambda Python runtime.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/.terraform", "**/.build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PT"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S108", "S311"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+  "pfg",
+  "dashboard",
+  "pfg_lambda_common",
+  "extract_metadata",
+  "validate",
+  "route",
+  "quarantine",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["services/lambdas", "services/dashboard", "cli"]
+testpaths = ["tests/unit"]
+addopts = "-ra --strict-markers"
+markers = [
+  "live: needs the running local stack (make up && make infra && make bootstrap)",
+]

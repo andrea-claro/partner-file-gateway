@@ -1,0 +1,16 @@
+# Everything the tools container needs: tests, lint, the pfg CLI and AWS CLIs.
+# Compile with: uv pip compile requirements/dev.in --generate-hashes \
+#   --python-version 3.12 --python-platform linux -o requirements/dev.txt
+boto3
+moto[s3,dynamodb,sqs]
+pytest
+ruff
+typer
+httpx
+cryptography
+paramiko
+fastapi
+jinja2
+uvicorn
+awscli
+awscli-local

@@ -1,0 +1,5 @@
+{% if result %}
+<p class="notice notice-ok">Uploaded <code>{{ result.remote_name }}</code> from sample <code>{{ result.sample }}</code>. Expected outcome: <span class="badge badge-{{ result.expected|lower }}">{{ result.expected }}</span></p>
+{% else %}
+<p class="notice notice-warn">{{ message }}</p>
+{% endif %}

@@ -1,0 +1,120 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  TERRAFORM_VERSION: "1.17.2"
+  TFLINT_VERSION: "v0.66.0"
+  CHECKOV_VERSION: "3.4.5"
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements/dev.txt
+      - run: pip install --require-hashes -r requirements/dev.txt
+      - name: ruff
+        run: |
+          ruff check --output-format=github .
+          ruff format --check .
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      - name: terraform fmt
+        run: terraform fmt -check -recursive infra
+      - uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init --config "$PWD/.tflint.hcl"
+          tflint --recursive --config "$PWD/.tflint.hcl" --format compact
+
+  security:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # gitleaks scans the whole history
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: checkov
+        run: |
+          pip install "checkov==${CHECKOV_VERSION}"
+          checkov --directory infra --framework terraform --compact --quiet
+
+  unit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements/dev.txt
+      - run: pip install --require-hashes -r requirements/dev.txt
+      - name: pytest (moto, no network)
+        run: pytest -p no:cacheprovider tests/unit
+
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      - name: terraform validate (envs/local and envs/aws, never applied)
+        run: ./scripts/validate-tf.sh
+
+  e2e:
+    # Full stack on the runner: LocalStack, SFTPGo, dashboard. Needs the
+    # LOCALSTACK_AUTH_TOKEN repository secret (CI auth token); skipped without it.
+    if: github.event_name == 'push'
+    needs: [lint, unit, validate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        if: env.LOCALSTACK_AUTH_TOKEN != ''
+      - name: Start the stack
+        if: env.LOCALSTACK_AUTH_TOKEN != ''
+        run: make up
+      - name: Infrastructure and demo partner
+        if: env.LOCALSTACK_AUTH_TOKEN != ''
+        run: |
+          make infra
+          make bootstrap
+      - name: End-to-end tests
+        if: env.LOCALSTACK_AUTH_TOKEN != ''
+        run: make e2e
+      - name: Container logs
+        if: failure() && env.LOCALSTACK_AUTH_TOKEN != ''
+        run: docker compose logs --no-color --tail 300
+      - name: Skipped
+        if: env.LOCALSTACK_AUTH_TOKEN == ''
+        run: echo "LOCALSTACK_AUTH_TOKEN secret not set; e2e runs locally with 'make e2e'."

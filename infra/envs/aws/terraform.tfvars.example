@@ -1,0 +1,4 @@
+# Example only: this environment is validated in CI and never applied.
+partners = {
+  demo = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExamplePublicKeyOnlyNotARealKey000000000 demo@example"
+}

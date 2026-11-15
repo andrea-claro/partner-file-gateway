@@ -1,0 +1,435 @@
+{
+  "Comment": "process-transfer: validate, route and audit every file a partner uploads to inbound/<partner>/. Rendered by Terraform templatefile() in infra/modules/pipeline.",
+  "StartAt": "IsFolderMarker",
+  "States": {
+    "IsFolderMarker": {
+      "Type": "Choice",
+      "Comment": "SFTP clients create zero-byte keys ending in '/' for folders. They are not transfers.",
+      "Choices": [
+        {
+          "Variable": "$.detail.object.key",
+          "StringMatches": "*/",
+          "Next": "IgnoreFolderMarker"
+        }
+      ],
+      "Default": "ExtractMetadata"
+    },
+    "IgnoreFolderMarker": {
+      "Type": "Succeed"
+    },
+    "ExtractMetadata": {
+      "Type": "Task",
+      "Comment": "Partner id, size, SHA-256 and the deterministic transfer id (ADR-004).",
+      "Resource": "${extract_metadata_arn}",
+      "ResultPath": "$.metadata",
+      "TimeoutSeconds": 120,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleFailure"
+        }
+      ],
+      "Next": "RecordReceived"
+    },
+    "RecordReceived": {
+      "Type": "Task",
+      "Comment": "Conditional write: a duplicate delivery of the same S3 event stops here (ADR-004).",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "${transfers_table}",
+        "Item": {
+          "transfer_id": { "S.$": "$.metadata.transfer_id" },
+          "partner_id": { "S.$": "$.metadata.partner_id" },
+          "bucket": { "S.$": "$.metadata.bucket" },
+          "source_key": { "S.$": "$.metadata.key" },
+          "filename": { "S.$": "$.metadata.filename" },
+          "size_bytes": { "N.$": "States.Format('{}', $.metadata.size)" },
+          "sha256": { "S.$": "$.metadata.sha256" },
+          "status": { "S": "RECEIVED" },
+          "received_at": { "S.$": "$.metadata.received_at" },
+          "updated_at": { "S.$": "$$.State.EnteredTime" },
+          "execution_arn": { "S.$": "$$.Execution.Id" },
+          "history": {
+            "L": [
+              {
+                "M": {
+                  "at": { "S.$": "$$.State.EnteredTime" },
+                  "status": { "S": "RECEIVED" },
+                  "detail": { "S.$": "States.Format('Received {} ({} bytes)', $.metadata.key, $.metadata.size)" }
+                }
+              }
+            ]
+          }
+        },
+        "ConditionExpression": "attribute_not_exists(transfer_id)"
+      },
+      "ResultPath": null,
+      "TimeoutSeconds": 30,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "DynamoDB.ProvisionedThroughputExceededException",
+            "DynamoDB.RequestLimitExceeded",
+            "DynamoDB.ThrottlingException",
+            "DynamoDB.InternalServerErrorException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 4,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["DynamoDB.ConditionalCheckFailedException"],
+          "ResultPath": null,
+          "Next": "AlreadyProcessed"
+        },
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleFailure"
+        }
+      ],
+      "Next": "Validate"
+    },
+    "AlreadyProcessed": {
+      "Type": "Succeed",
+      "Comment": "Duplicate event for a transfer that is already being processed or done."
+    },
+    "Validate": {
+      "Type": "Task",
+      "Comment": "Partner active, file name pattern, size and content schema.",
+      "Resource": "${validate_arn}",
+      "Parameters": {
+        "metadata.$": "$.metadata"
+      },
+      "ResultPath": "$.validation",
+      "TimeoutSeconds": 120,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleFailure"
+        }
+      ],
+      "Next": "IsValid"
+    },
+    "IsValid": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.validation.valid",
+          "BooleanEquals": true,
+          "Next": "Route"
+        }
+      ],
+      "Default": "Quarantine"
+    },
+    "Route": {
+      "Type": "Task",
+      "Comment": "Move to processed/<partner>/<yyyy>/<mm>/<dd>/.",
+      "Resource": "${route_arn}",
+      "Parameters": {
+        "metadata.$": "$.metadata"
+      },
+      "ResultPath": "$.routing",
+      "TimeoutSeconds": 120,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleFailure"
+        }
+      ],
+      "Next": "RecordOutcome"
+    },
+    "Quarantine": {
+      "Type": "Task",
+      "Comment": "Move to quarantine/<partner>/<yyyy>/<mm>/<dd>/ with the rejection reason.",
+      "Resource": "${quarantine_arn}",
+      "Parameters": {
+        "metadata.$": "$.metadata",
+        "reason.$": "$.validation.reason"
+      },
+      "ResultPath": "$.routing",
+      "TimeoutSeconds": 120,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleFailure"
+        }
+      ],
+      "Next": "RecordOutcome"
+    },
+    "RecordOutcome": {
+      "Type": "Task",
+      "Comment": "Audit trail: final status, destination and reason. Only a RECEIVED transfer can be finalised.",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${transfers_table}",
+        "Key": {
+          "transfer_id": { "S.$": "$.metadata.transfer_id" }
+        },
+        "UpdateExpression": "SET #status = :status, #destination = :destination, #reason = :reason, #updated = :now, #completed = :now, #history = list_append(#history, :event)",
+        "ConditionExpression": "#status = :received",
+        "ExpressionAttributeNames": {
+          "#status": "status",
+          "#destination": "destination_key",
+          "#reason": "reason",
+          "#updated": "updated_at",
+          "#completed": "completed_at",
+          "#history": "history"
+        },
+        "ExpressionAttributeValues": {
+          ":status": { "S.$": "$.routing.status" },
+          ":destination": { "S.$": "$.routing.destination_key" },
+          ":reason": { "S.$": "$.validation.reason" },
+          ":now": { "S.$": "$$.State.EnteredTime" },
+          ":received": { "S": "RECEIVED" },
+          ":event": {
+            "L": [
+              {
+                "M": {
+                  "at": { "S.$": "$$.State.EnteredTime" },
+                  "status": { "S.$": "$.routing.status" },
+                  "detail": { "S.$": "$.routing.detail" }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "ResultPath": null,
+      "TimeoutSeconds": 30,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "DynamoDB.ProvisionedThroughputExceededException",
+            "DynamoDB.RequestLimitExceeded",
+            "DynamoDB.ThrottlingException",
+            "DynamoDB.InternalServerErrorException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 4,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["DynamoDB.ConditionalCheckFailedException"],
+          "ResultPath": null,
+          "Next": "AlreadyRecorded"
+        },
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleFailure"
+        }
+      ],
+      "Next": "Notify"
+    },
+    "AlreadyRecorded": {
+      "Type": "Succeed",
+      "Comment": "The outcome was already written by an earlier attempt."
+    },
+    "Notify": {
+      "Type": "Task",
+      "Comment": "Tell downstream consumers what happened to the file.",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "${notifications_queue_url}",
+        "MessageBody": {
+          "type": "transfer.completed",
+          "transfer_id.$": "$.metadata.transfer_id",
+          "partner_id.$": "$.metadata.partner_id",
+          "filename.$": "$.metadata.filename",
+          "size_bytes.$": "$.metadata.size",
+          "sha256.$": "$.metadata.sha256",
+          "status.$": "$.routing.status",
+          "destination_key.$": "$.routing.destination_key",
+          "reason.$": "$.validation.reason"
+        },
+        "MessageAttributes": {
+          "partner_id": {
+            "DataType": "String",
+            "StringValue.$": "$.metadata.partner_id"
+          },
+          "status": {
+            "DataType": "String",
+            "StringValue.$": "$.routing.status"
+          }
+        }
+      },
+      "ResultPath": null,
+      "TimeoutSeconds": 30,
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleFailure"
+        }
+      ],
+      "End": true
+    },
+    "HandleFailure": {
+      "Type": "Choice",
+      "Comment": "If the transfer id is known, record FAILED in the audit trail before dead-lettering.",
+      "Choices": [
+        {
+          "Variable": "$.metadata.transfer_id",
+          "IsPresent": true,
+          "Next": "RecordFailed"
+        }
+      ],
+      "Default": "SendToDeadLetterQueue"
+    },
+    "RecordFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${transfers_table}",
+        "Key": {
+          "transfer_id": { "S.$": "$.metadata.transfer_id" }
+        },
+        "UpdateExpression": "SET #status = :failed, #partner = :partner, #filename = :filename, #error = :error, #updated = :now, #history = list_append(if_not_exists(#history, :empty), :event)",
+        "ExpressionAttributeNames": {
+          "#status": "status",
+          "#partner": "partner_id",
+          "#filename": "filename",
+          "#error": "error",
+          "#updated": "updated_at",
+          "#history": "history"
+        },
+        "ExpressionAttributeValues": {
+          ":failed": { "S": "FAILED" },
+          ":partner": { "S.$": "$.metadata.partner_id" },
+          ":filename": { "S.$": "$.metadata.filename" },
+          ":error": { "S.$": "$.error.Error" },
+          ":now": { "S.$": "$$.State.EnteredTime" },
+          ":empty": { "L": [] },
+          ":event": {
+            "L": [
+              {
+                "M": {
+                  "at": { "S.$": "$$.State.EnteredTime" },
+                  "status": { "S": "FAILED" },
+                  "detail": { "S.$": "States.JsonToString($.error)" }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "ResultPath": null,
+      "TimeoutSeconds": 30,
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.audit_error",
+          "Next": "SendToDeadLetterQueue"
+        }
+      ],
+      "Next": "SendToDeadLetterQueue"
+    },
+    "SendToDeadLetterQueue": {
+      "Type": "Task",
+      "Comment": "Keep the failed event for inspection and replay.",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "${dead_letter_queue_url}",
+        "MessageBody": {
+          "type": "transfer.failed",
+          "execution_arn.$": "$$.Execution.Id",
+          "error.$": "$.error",
+          "s3.$": "$.detail"
+        }
+      },
+      "ResultPath": null,
+      "TimeoutSeconds": 30,
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "TransferFailed"
+    },
+    "TransferFailed": {
+      "Type": "Fail",
+      "Error": "TransferFailed",
+      "Cause": "The transfer could not be processed. See the transfers table and the dead-letter queue."
+    }
+  }
+}

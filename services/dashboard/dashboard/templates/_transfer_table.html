@@ -1,0 +1,10 @@
+<div class="table-wrap">
+  <table class="transfers">
+    <thead>
+      <tr><th>Received</th><th>Partner</th><th>File</th><th class="num">Size</th><th>Status</th><th>Outcome</th></tr>
+    </thead>
+    <tbody hx-get="{{ refresh_url }}" hx-trigger="every 4s" hx-swap="innerHTML">
+      {% include "_transfer_rows.html" %}
+    </tbody>
+  </table>
+</div>

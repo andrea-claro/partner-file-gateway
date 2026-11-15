@@ -1,0 +1,60 @@
+"""Quarantine Lambda: move a rejected file to quarantine/<partner>/<yyyy>/<mm>/<dd>/."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from functools import cache
+from typing import Any
+
+import boto3
+
+from pfg_lambda_common.keys import QUARANTINE_PREFIX, destination_key, parse_inbound_key
+from pfg_lambda_common.log import JsonLogger
+from pfg_lambda_common.s3move import move_object
+
+log = JsonLogger("quarantine")
+
+STATUS = "REJECTED"
+
+
+@cache
+def _s3() -> Any:
+    return boto3.client("s3")
+
+
+def handle(event: dict[str, Any], *, s3: Any) -> dict[str, Any]:
+    metadata = event["metadata"]
+    reason = event.get("reason") or "rejected by validation"
+    inbound = parse_inbound_key(metadata["key"])
+    destination = destination_key(
+        QUARANTINE_PREFIX, inbound, datetime.fromisoformat(metadata["received_at"])
+    )
+    version_id = move_object(
+        s3,
+        bucket=metadata["bucket"],
+        source_key=metadata["key"],
+        source_version_id=metadata.get("version_id", ""),
+        destination_key=destination,
+        metadata={
+            "pfg-transfer-id": metadata["transfer_id"],
+            "pfg-partner-id": metadata["partner_id"],
+            "pfg-sha256": metadata["sha256"],
+            "pfg-quarantine-reason": reason,
+        },
+    )
+    log.bind(transfer_id=metadata["transfer_id"]).warning(
+        "file quarantined",
+        partner_id=metadata["partner_id"],
+        destination_key=destination,
+        reason=reason,
+    )
+    return {
+        "status": STATUS,
+        "destination_key": destination,
+        "destination_version_id": version_id,
+        "detail": f"Quarantined to {destination}: {reason}",
+    }
+
+
+def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    return handle(event, s3=_s3())

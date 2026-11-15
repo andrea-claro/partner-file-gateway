@@ -1,0 +1,4 @@
+[
+  {"order_id": "ORD-5001", "sku": "SKU-BLU-07", "quantity": -2, "unit_price": "149.00", "currency": "CHF"},
+  {"order_id": "ORD-5002", "sku": "SKU-GRN-03", "quantity": 1, "unit_price": "4.505", "currency": "eur"}
+]

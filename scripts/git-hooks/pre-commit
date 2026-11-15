@@ -1,0 +1,21 @@
+#!/bin/sh
+# Block commits that contain secrets. Install with: make hooks
+set -eu
+
+# 1. Never commit local secret files, even with `git add -f`.
+blocked="$(git diff --cached --name-only --diff-filter=ACMR | grep -E '(^|/)(\.env(\..*)?|\.secrets/.*|.*\.tfstate.*|PLAN\.md\.example)$' | grep -v '\.env\.example$' || true)"
+if [ -n "$blocked" ]; then
+  echo "pre-commit: refusing to commit local-only files:" >&2
+  echo "$blocked" | sed 's/^/  /' >&2
+  exit 1
+fi
+
+# 2. Scan staged changes with gitleaks (runs in Docker; nothing to install).
+if command -v docker >/dev/null 2>&1; then
+  docker run --rm \
+    -v "$(git rev-parse --show-toplevel):/repo" -w /repo \
+    -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo \
+    ghcr.io/gitleaks/gitleaks:v8.30.1 git --pre-commit --staged --redact --no-banner
+else
+  echo "pre-commit: docker not found, skipping gitleaks scan" >&2
+fi

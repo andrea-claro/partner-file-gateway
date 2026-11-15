@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ transfer.get("filename", "Transfer") }} · partner-file-gateway{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/transfers">&larr; Transfers</a></p>
+<section class="panel">
+  <div class="panel-head">
+    <h1 class="file-title">{{ transfer.get("filename", transfer.transfer_id) }}</h1>
+    <span class="badge badge-{{ transfer.get('status', 'received')|lower }}">{{ transfer.get("status", "-") }}</span>
+  </div>
+  <dl class="facts">
+    <dt>Transfer id</dt><dd class="mono">{{ transfer.transfer_id }}</dd>
+    <dt>Partner</dt><dd>{{ transfer.get("partner_id", "-") }}</dd>
+    <dt>Received</dt><dd>{{ transfer.get("received_at")|time }}</dd>
+    <dt>Completed</dt><dd>{{ transfer.get("completed_at")|time }}</dd>
+    <dt>Size</dt><dd>{{ transfer.get("size_bytes")|bytes }}</dd>
+    <dt>SHA-256</dt><dd class="mono break">{{ transfer.get("sha256") or "-" }}</dd>
+    <dt>Source</dt><dd class="mono break">{{ transfer.get("source_key", "-") }}</dd>
+    <dt>Destination</dt><dd class="mono break">{{ transfer.get("destination_key") or "-" }}</dd>
+    {% if transfer.get("reason") %}<dt>Reason</dt><dd>{{ transfer.reason }}</dd>{% endif %}
+    {% if transfer.get("error") %}<dt>Error</dt><dd class="mono">{{ transfer.error }}</dd>{% endif %}
+  </dl>
+</section>
+<section class="panel">
+  <h2>Audit trail</h2>
+  <ol class="timeline">
+    {% for event in transfer.get("history", []) %}
+    <li>
+      <span class="badge badge-{{ event.get('status', 'received')|lower }}">{{ event.get("status") }}</span>
+      <time class="mono">{{ event.get("at")|time }}</time>
+      <p>{{ event.get("detail", "") }}</p>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endblock %}

@@ -1,0 +1,189 @@
+# partner-file-gateway local stack.
+#
+#   make up        localstack + sftpgo + dashboard
+#   make tunnel    optional bundled cloudflared (profile "public")
+#   make test ...  tools container (profile "tools")
+#
+# Exposure rules (CLAUDE.md): every published port binds to 127.0.0.1. Only the
+# dashboard is meant to be reachable from the internet, through Cloudflare
+# Tunnel. Secrets come from .env (gitignored) and .secrets/ (gitignored).
+name: pfg
+
+x-localstack-aws-env: &localstack-aws-env
+  # LocalStack's fixed dummy credentials: not a secret, rejected by real AWS.
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_DEFAULT_REGION: eu-central-2
+  AWS_REGION: eu-central-2
+  AWS_ENDPOINT_URL: http://localstack:4566
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  localstack:
+    image: localstack/localstack:2026.10.7
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4566:4566"
+    environment:
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}
+      SERVICES: s3,dynamodb,sqs,events,stepfunctions,lambda,iam,sts,logs
+      # Lambda containers join the backend network so they can reach LocalStack.
+      LAMBDA_DOCKER_NETWORK: pfg-backend
+      # The first invocation pulls the Lambda runtime image.
+      LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT: "120"
+      DEBUG: ${LOCALSTACK_DEBUG:-0}
+    volumes:
+      # Required to run Lambda functions as sibling containers.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - localstack-data:/var/lib/localstack
+    networks:
+      - backend
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - |
+          import json, urllib.request
+          services = json.load(urllib.request.urlopen("http://localhost:4566/_localstack/health", timeout=3))["services"]
+          needed = ("s3", "dynamodb", "sqs", "events", "stepfunctions", "lambda")
+          raise SystemExit(0 if all(services.get(s) in ("available", "running") for s in needed) else 1)
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  sftpgo:
+    # Stand-in for AWS Transfer Family: SFTP with an S3 backend per partner.
+    image: drakkan/sftpgo:v2.7.6
+    restart: unless-stopped
+    depends_on:
+      localstack:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:2022:2022" # SFTP, partners
+      - "127.0.0.1:8080:8080" # admin UI + REST API, localhost only
+    environment:
+      SFTPGO_SFTPD__BINDINGS__0__PORT: "2022"
+      # Key-only authentication: no passwords, no keyboard-interactive.
+      SFTPGO_SFTPD__PASSWORD_AUTHENTICATION: "false"
+      SFTPGO_SFTPD__KEYBOARD_INTERACTIVE_AUTHENTICATION: "false"
+      SFTPGO_HTTPD__BINDINGS__0__PORT: "8080"
+      SFTPGO_HTTPD__BINDINGS__0__ENABLE_WEB_CLIENT: "false"
+      SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
+      SFTPGO_DEFAULT_ADMIN_USERNAME: ${SFTPGO_ADMIN_USERNAME:-pfg-admin}
+      SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-}
+      # Brute-force protection for every protocol.
+      SFTPGO_COMMON__DEFENDER__ENABLED: "true"
+    volumes:
+      # Users database and host keys (stable across restarts, pinned by clients).
+      - sftpgo-data:/var/lib/sftpgo
+    networks:
+      - backend
+    healthcheck:
+      # The image ships no curl/wget: check the SSH banner and the admin port.
+      test:
+        - CMD
+        - bash
+        - -c
+        - exec 3<>/dev/tcp/127.0.0.1/2022 && timeout 3 head -c 7 <&3 | grep -q SSH-2.0 && exec 4<>/dev/tcp/127.0.0.1/8080
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    <<: *hardening
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: services/dashboard/Dockerfile
+    image: pfg-dashboard:local
+    restart: unless-stopped
+    depends_on:
+      localstack:
+        condition: service_healthy
+      sftpgo:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${DASHBOARD_PORT:-8000}:8000"
+    environment:
+      <<: *localstack-aws-env
+      PFG_TRANSFERS_TABLE: transfers
+      PFG_PARTNERS_TABLE: partners
+      PFG_SFTP_HOST: sftpgo
+      PFG_SFTP_PORT: "2022"
+      PFG_SIMULATOR_PARTNER: demo
+      PFG_SIMULATOR_KEY: /run/pfg/simulator/id_ed25519
+      PFG_KNOWN_HOSTS: /run/pfg/sftp/known_hosts
+      PFG_SIMULATE_PER_IP_PER_MINUTE: "3"
+      PFG_SIMULATE_GLOBAL_PER_MINUTE: "30"
+    volumes:
+      # Only the demo partner's key: the simulator uploads as that partner.
+      - ./.secrets/partners/demo:/run/pfg/simulator:ro
+      - ./.secrets/sftpgo:/run/pfg/sftp:ro
+    networks:
+      - backend
+      - edge
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: *hardening
+
+  cloudflared:
+    # Optional. Not needed when a Cloudflare Tunnel already runs on the host:
+    # route that tunnel to http://localhost:${DASHBOARD_PORT:-8000} instead.
+    image: cloudflare/cloudflared:2026.11.0
+    profiles: ["public"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      dashboard:
+        condition: service_healthy
+    # The edge network contains only the dashboard: even a misconfigured tunnel
+    # route cannot reach SFTPGo or LocalStack from here.
+    networks:
+      - edge
+    read_only: true
+    <<: *hardening
+
+  tools:
+    build:
+      context: .
+      dockerfile: docker/tools/Dockerfile
+    image: pfg-tools:local
+    profiles: ["tools"]
+    working_dir: /workspace
+    environment:
+      <<: *localstack-aws-env
+      TF_VAR_localstack_endpoint: http://localstack:4566
+      SFTPGO_URL: http://sftpgo:8080
+      SFTPGO_ADMIN_USERNAME: ${SFTPGO_ADMIN_USERNAME:-pfg-admin}
+      SFTPGO_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-}
+      PFG_SFTP_HOST: sftpgo
+      PFG_SFTP_PORT: "2022"
+      PFG_KNOWN_HOSTS: /workspace/.secrets/sftpgo/known_hosts
+      PFG_KEYS_DIR: /workspace/.secrets/partners
+      PYTHONPATH: /workspace/cli:/workspace/services/lambdas:/workspace/services/dashboard
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - .:/workspace
+      - tools-cache:/root/.cache
+    networks:
+      - backend
+
+networks:
+  backend:
+    name: pfg-backend
+  edge:
+    name: pfg-edge
+
+volumes:
+  localstack-data:
+  sftpgo-data:
+  tools-cache:

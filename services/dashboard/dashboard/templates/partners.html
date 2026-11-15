@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Partners · partner-file-gateway{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-head">
+    <h1>Partners</h1>
+    <span class="muted">Onboarded with <code>pfg partner create</code></span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Partner</th><th>Name</th><th>Status</th><th>Allowed files</th><th class="num">Max size</th><th>Schema</th><th>Key fingerprint</th></tr>
+      </thead>
+      <tbody>
+        {% for p in partners %}
+        <tr>
+          <td class="mono">{{ p.partner_id }}</td>
+          <td>{{ p.get("name", "") }}</td>
+          <td><span class="badge badge-{{ 'delivered' if p.get('status') == 'ACTIVE' else 'failed' }}">{{ p.get("status", "-") }}</span></td>
+          <td class="mono">{{ p.get("allowed_patterns", [])|join(", ") }}</td>
+          <td class="num nowrap">{{ p.get("max_file_size_bytes")|bytes }}</td>
+          <td class="mono">{{ p.get("schema", "-") }}</td>
+          <td class="mono break">{{ p.get("key_fingerprint", "-") }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">No partners yet. Run <code>make bootstrap</code>.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,8 @@
+# Runtime dependencies of the dashboard image.
+# Compile with: uv pip compile services/dashboard/requirements.in --generate-hashes \
+#   --python-version 3.12 --python-platform linux -o services/dashboard/requirements.txt
+fastapi
+jinja2
+uvicorn
+boto3
+paramiko

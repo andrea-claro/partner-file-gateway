@@ -1,0 +1,18 @@
+# Keep secrets, state and caches out of every build context.
+.git
+.github
+.env
+.env.*
+.secrets
+**/.terraform
+**/*.tfstate*
+**/.build
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.venv
+venv
+docs
+tests
+infra

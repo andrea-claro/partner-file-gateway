@@ -1,0 +1,14 @@
+{% for t in transfers %}
+<tr>
+  <td class="mono nowrap">{{ t.get("received_at")|time }}</td>
+  <td>{{ t.get("partner_id", "-") }}</td>
+  <td class="file"><a href="/transfers/{{ t.transfer_id }}">{{ t.get("filename", t.transfer_id) }}</a></td>
+  <td class="num nowrap">{{ t.get("size_bytes")|bytes }}</td>
+  <td><span class="badge badge-{{ t.get('status', 'received')|lower }}">{{ t.get("status", "-") }}</span></td>
+  <td class="outcome">{{ t.get("reason") or t.get("destination_key") or t.get("error") or "" }}</td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="6" class="empty">No transfers yet. Press "Simulate a partner upload" or upload a file over SFTP.</td>
+</tr>
+{% endfor %}
