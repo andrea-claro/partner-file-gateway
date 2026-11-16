@@ -1,5 +1,10 @@
 # partner-file-gateway
 
+[![ci](https://github.com/andrea-claro/partner-file-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/andrea-claro/partner-file-gateway/actions/workflows/ci.yml)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
+**Live demo: <https://file-gtw-lab.clarotech.net>**
+
 A small B2B **managed file transfer** platform with the architecture of AWS
 Transfer Family, running entirely on one machine at zero cloud cost.
 
@@ -10,8 +15,44 @@ and validates every file, delivers it to `processed/` or moves it to
 SQS. A read-only dashboard shows what happened and lets visitors trigger a real
 upload.
 
-> **Status:** work in progress, built AI-first (see
-> [How this was built](docs/how-this-was-built.md)). Live demo: _link coming soon_.
+The project is a lab built **AI-first**: coding agents implement tasks from
+[PLAN.md](PLAN.md), the author designs, reviews and decides what ships. The
+process, with the mistakes the review caught, is in
+[How this was built](docs/how-this-was-built.md).
+
+## Try the live demo
+
+1. Open <https://file-gtw-lab.clarotech.net>.
+2. Press **Simulate a partner upload**. The server uploads one of the bundled
+   sample files over SFTP as the demo partner; about 7 in 10 are valid.
+3. Within a few seconds the file appears under **Latest transfers** as
+   `DELIVERED`, or as `REJECTED` with the reason (wrong file name, bad schema…).
+4. Click the file name to see its **audit trail**: every status change with its
+   timestamp, the SHA-256 fingerprint and where the file was moved.
+5. **Partners** lists the onboarded partners with their allowed file patterns,
+   size limits and SSH key fingerprints.
+
+The demo runs on a single laptop behind Cloudflare Tunnel, uses fictitious data
+and is read-only apart from the rate-limited simulate button. If it is offline,
+the [quickstart](#quickstart) runs the same stack locally.
+
+| Overview | Transfer audit trail |
+|---|---|
+| ![Dashboard overview with transfer counts and the latest transfers](docs/screenshots/dashboard-overview.png) | ![Audit trail of a rejected transfer](docs/screenshots/transfer-detail.png) |
+
+<sub>Screenshots rendered with sample data.</sub>
+
+## What this project shows
+
+| Topic | Where to look |
+|---|---|
+| AWS managed file transfer architecture: Transfer Family-style SFTP, S3, EventBridge, Step Functions, Lambda, DynamoDB, SQS | [Architecture](docs/architecture.md), [state machine](statemachine/process_transfer.asl.json) |
+| Infrastructure as Code: reusable Terraform modules, a LocalStack target and a real-AWS target that is validated but never applied | [`infra/`](infra), [ADR-005](docs/adr/ADR-005-two-terraform-targets.md) |
+| Automated partner onboarding and SSH key rotation | [`cli/pfg`](cli/pfg), [lifecycle e2e tests](tests/e2e/test_partner_lifecycle.py) |
+| Security by default: key-only SFTP, least-privilege IAM, encryption, audit trail, one public endpoint | [Security and compliance](#security-and-compliance) |
+| Reliability: idempotent processing, retries, dead-letter queue | [ADR-004](docs/adr/ADR-004-idempotency.md), [Architecture](docs/architecture.md#idempotency) |
+| CI/CD with lint, policy as code (checkov), secret scanning and tests | [`ci.yml`](.github/workflows/ci.yml) |
+| AI-first engineering with human review | [How this was built](docs/how-this-was-built.md) |
 
 ## Architecture
 
@@ -115,9 +156,18 @@ runs gitleaks on staged changes; CI runs gitleaks on the full history.
 
 Only the dashboard should be reachable from the internet. With a Cloudflare
 Tunnel already running on the host, add a *Published application* route:
-`files.<your-domain>` → `http://localhost:8000`. Never route ports 2022, 8080 or
+`files.<your-domain>` → `http://localhost:8000`. The live demo at
+<https://file-gtw-lab.clarotech.net> is published exactly this way. Never route ports 2022, 8080 or
 4566. Without a host tunnel, set `TUNNEL_TOKEN` in `.env` and run `make tunnel`
 (the bundled `cloudflared` sits on a network that contains only the dashboard).
+
+## Operating notes
+
+- LocalStack's free Hobby plan keeps no state across restarts. After a restart
+  of the machine or of Docker, run `make demo` again: Terraform and the demo
+  partner are re-created idempotently (the transfer history starts empty).
+- The demo is only online while the host is awake; `restart: unless-stopped`
+  brings the containers back after Docker restarts.
 
 ## Development
 

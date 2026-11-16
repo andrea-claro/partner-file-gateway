@@ -104,57 +104,57 @@ Every task is implemented by an AI coding agent from this plan, reviewed by Andr
 
 ### Phase 0 — Foundations (Mon 16 Nov)
 
-- [ ] 0.1 **Prerequisites on the Mac (Andrea, manual):** Docker Desktop, `make`, `git`; LocalStack Hobby account and `LOCALSTACK_AUTH_TOKEN`. Terraform, Python, AWS CLI and the linters run in the `tools` container; the Cloudflare Tunnel already runs on the host.
-- [ ] 0.2 Repo skeleton (§4), `git init`, public GitHub repo, MIT licence, `.gitignore`, `.env.example`.
-- [ ] 0.3 `CLAUDE.md`: stack, conventions, commands, review rules, "never commit secrets".
-- [ ] 0.4 `docker-compose.yml` with LocalStack and SFTPGo; `Makefile` targets.
+- [x] 0.1 **Prerequisites on the Mac (Andrea, manual):** Docker Desktop, `make`, `git`; LocalStack Hobby account and `LOCALSTACK_AUTH_TOKEN`. Terraform, Python, AWS CLI and the linters run in the `tools` container; the Cloudflare Tunnel already runs on the host.
+- [x] 0.2 Repo skeleton (§4), `git init`, public GitHub repo, MIT licence, `.gitignore`, `.env.example`.
+- [x] 0.3 `CLAUDE.md`: stack, conventions, commands, review rules, "never commit secrets".
+- [x] 0.4 `docker-compose.yml` with LocalStack and SFTPGo; `Makefile` targets.
 - **Acceptance:** `make up` starts LocalStack and SFTPGo healthy; `awslocal s3 ls` works; SFTPGo admin reachable on localhost only.
 
 ### Phase 1 — Ingestion (Tue 17 Nov)
 
-- [ ] 1.1 Terraform `storage`: bucket `pfg-transfer`, versioning, encryption, public access blocked, EventBridge notifications on.
-- [ ] 1.2 Terraform `registry`: DynamoDB tables `partners` and `transfers`.
-- [ ] 1.3 Terraform `events`: SQS `partner-notifications` + DLQ; EventBridge rule for Object Created under `inbound/`.
-- [ ] 1.4 SFTPGo with S3 backend pointed at LocalStack; one demo partner.
+- [x] 1.1 Terraform `storage`: bucket `pfg-transfer`, versioning, encryption, public access blocked, EventBridge notifications on.
+- [x] 1.2 Terraform `registry`: DynamoDB tables `partners` and `transfers`.
+- [x] 1.3 Terraform `events`: SQS `partner-notifications` + DLQ; EventBridge rule for Object Created under `inbound/`.
+- [x] 1.4 SFTPGo with S3 backend pointed at LocalStack; one demo partner.
 - **Acceptance:** SFTP upload as `demo` → object in `inbound/demo/` → event reaches EventBridge (debug target: SQS).
 
 ### Phase 2 — Processing pipeline (Wed 18 – Thu 19 Nov)
 
-- [ ] 2.1 Unit tests first (pytest + moto) for each Lambda: happy path, wrong pattern, oversize, bad schema, unknown or disabled partner.
-- [ ] 2.2 Lambdas `extract_metadata`, `validate`, `route`, `quarantine` (Python 3.12, boto3, structured logs).
-- [ ] 2.3 State machine with retries; Catch → DLQ + `FAILED` audit.
-- [ ] 2.4 Terraform `pipeline`: Lambdas, state machine, least-privilege IAM roles, EventBridge target.
-- [ ] 2.5 Idempotency (ADR-004).
+- [x] 2.1 Unit tests first (pytest + moto) for each Lambda: happy path, wrong pattern, oversize, bad schema, unknown or disabled partner.
+- [x] 2.2 Lambdas `extract_metadata`, `validate`, `route`, `quarantine` (Python 3.12, boto3, structured logs).
+- [x] 2.3 State machine with retries; Catch → DLQ + `FAILED` audit.
+- [x] 2.4 Terraform `pipeline`: Lambdas, state machine, least-privilege IAM roles, EventBridge target.
+- [x] 2.5 Idempotency (ADR-004).
 - **Acceptance:** e2e test — `samples/valid/*` → `processed/` + audit `DELIVERED` + SQS message; `samples/invalid/*` → `quarantine/` + audit `REJECTED` with reason.
 
 ### Phase 3 — Partner onboarding & key management (Fri 20 Nov)
 
-- [ ] 3.1 CLI `pfg` (Typer): `partner create --name --pubkey | --generate-key`, `partner rotate-key`, `partner disable`, `partner list`.
-- [ ] 3.2 `create`: DynamoDB record + S3 prefix + SFTPGo user via REST API (home = `inbound/<partner>/`, key auth only, SFTP/FTPS only).
-- [ ] 3.3 `disable`: blocks login and makes Validate reject new files.
+- [x] 3.1 CLI `pfg` (Typer): `partner create --name --pubkey | --generate-key`, `partner rotate-key`, `partner disable`, `partner list`.
+- [x] 3.2 `create`: DynamoDB record + S3 prefix + SFTPGo user via REST API (home = `inbound/<partner>/`, key auth only, SFTP/FTPS only).
+- [x] 3.3 `disable`: blocks login and makes Validate reject new files.
 - **Acceptance:** a new partner can upload after one command; after `rotate-key` the old key is refused; tests cover every command.
 
 ### Phase 4 — Dashboard & public exposure (Sat 21 Nov)
 
-- [ ] 4.1 FastAPI + Jinja2 + HTMX: overview (counts by status, last 24 h), transfers list and detail (audit trail), partners.
-- [ ] 4.2 "Simulate a partner upload" button: server-side SFTP upload (paramiko) of a random valid or invalid sample; rate-limited per IP.
-- [ ] 4.3 Read-only by design; `/healthz`.
-- [ ] 4.4 Cloudflare Tunnel (already running on the host, remotely managed) → route `files.<domain>` → `http://localhost:8000` (dashboard only). Bundled `cloudflared` container optional.
-- [ ] 4.5 Keep the Mac awake during the application window; `restart: unless-stopped` in compose.
+- [x] 4.1 FastAPI + Jinja2 + HTMX: overview (counts by status, last 24 h), transfers list and detail (audit trail), partners.
+- [x] 4.2 "Simulate a partner upload" button: server-side SFTP upload (paramiko) of a random valid or invalid sample; rate-limited per IP.
+- [x] 4.3 Read-only by design; `/healthz`.
+- [x] 4.4 Cloudflare Tunnel (already running on the host, remotely managed) → route `files.<domain>` → `http://localhost:8000` (dashboard only). Bundled `cloudflared` container optional.
+- [ ] 4.5 Keep the Mac awake while the demo is shared; `restart: unless-stopped` in compose.
 - **Acceptance:** public URL loads over HTTPS; a simulated upload appears within seconds; nothing else reachable from outside.
 
 ### Phase 5 — CI/CD, docs, polish (Sun 22 – Mon 23 Nov)
 
 - [ ] 5.1 GitHub Actions: `lint` (ruff, terraform fmt, tflint), `security` (checkov), `unit` (pytest + moto), `validate-aws` (terraform validate on `envs/aws`), `e2e` (LocalStack, token as secret).
-- [ ] 5.2 `infra/envs/aws`: Transfer Family SFTP server, users with SSH keys and scoped IAM role; reuses the other modules.
-- [ ] 5.3 README: what it is, architecture diagram, AWS → local mapping, 3-command quickstart, live demo link, screenshots.
+- [x] 5.2 `infra/envs/aws`: Transfer Family SFTP server, users with SSH keys and scoped IAM role; reuses the other modules.
+- [x] 5.3 README: what it is, architecture diagram, AWS → local mapping, 3-command quickstart, live demo link, screenshots.
 - [ ] 5.4 `docs/how-this-was-built.md`: agent workflow, review checklist, concrete examples of AI output corrected or rejected and why.
-- [ ] 5.5 ADR-001 to ADR-005.
+- [x] 5.5 ADR-001 to ADR-005.
 - **Acceptance:** all CI jobs green on `main`; a reviewer understands the project in two minutes from the README.
 
 ### Phase 6 — Publish (Tue 24 – Wed 25 Nov)
 
-- [ ] 6.1 Publish the repository on GitHub and add the live demo link to the README.
+- [x] 6.1 Publish the repository on GitHub and add the live demo link to the README.
 - [ ] 6.2 Final check of the public demo.
 
 ## 6. Cut line

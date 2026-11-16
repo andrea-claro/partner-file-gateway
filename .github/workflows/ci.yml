@@ -58,6 +58,9 @@ jobs:
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Same version as the pre-commit hook; older releases ignore the
+          # [[allowlists]] table in .gitleaks.toml.
+          GITLEAKS_VERSION: "8.30.1"
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}

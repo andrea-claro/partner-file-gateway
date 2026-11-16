@@ -114,3 +114,27 @@ e2e suite now also deletes its throwaway `e2e-*` partners before and after each
 run, so they never show up on the public dashboard.
 
 **Human review.** _To be filled in by Andrea._
+
+### 2026-11-16 — Published repository and live demo
+
+**Task.** Prepare the repository to be shared publicly with the live demo.
+
+**Produced.**
+- Andrea renamed the project to `partner-file-gateway`, published it on GitHub
+  and routed `file-gtw-lab.clarotech.net` to the dashboard through the
+  Cloudflare Tunnel that already runs on the host.
+- `PLAN.md` became a public copy without personal details; the original stays
+  local as `PLAN.md.example` (gitignored and blocked by the pre-commit hook).
+- README: CI badge, live demo link, a "Try the live demo" walkthrough,
+  screenshots (sample data), a "What this project shows" map and operating notes.
+- Dashboard footer links to the source; the "not reachable" page tells visitors
+  the demo is restarting instead of showing a developer command.
+- PLAN.md progress ticked for every task whose acceptance criteria were met on
+  the Mac (`make demo`, `make e2e` green, public URL loading over HTTPS).
+
+**Decision.** An agent proposal to add a "reconciler" service that re-applies
+Terraform after a restart was rejected by Andrea: the project is a lab and must
+not grow in complexity. The restart procedure (`make demo`) is documented in the
+README instead.
+
+**Human review.** _To be filled in by Andrea._

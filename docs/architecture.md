@@ -139,7 +139,8 @@ first write is `PutItem … attribute_not_exists(transfer_id)`; a duplicate ends
 ## Known limitations
 
 - LocalStack Hobby does not persist state across restarts: after restarting the
-  stack run `make infra bootstrap` again (both are idempotent).
+  stack run `make demo` again (idempotent). Automating this was left out on
+  purpose to keep the lab simple.
 - The dashboard scans the `transfers` table; fine for a demo, not for millions of
   rows (a status/date GSI would replace it).
 - FTPS, malware scanning and outbound delivery are out of scope for now (PLAN.md
