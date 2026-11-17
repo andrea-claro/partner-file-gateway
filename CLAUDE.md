@@ -8,7 +8,7 @@ running entirely on a local machine at zero cost.
 Partners upload files over SFTP/FTPS. Files land in S3. An event-driven pipeline
 (EventBridge → Step Functions → Lambda) validates every file, routes it to `processed/` or `quarantine/`,
 writes an audit trail to DynamoDB and notifies through SQS. A read-only FastAPI dashboard shows transfers,
-partners and audit history, and is published on the internet through Cloudflare Tunnel.
+partners and audit history. It runs locally; publishing it through Cloudflare Tunnel is optional.
 
 It is a portfolio project for a DevOps Engineer (AI-first) role. Clarity, correctness, security and tests
 matter more than the number of features.
@@ -75,7 +75,7 @@ Created in Phase 0; keep this list up to date. Every target runs in Docker (`mak
   in the `tools` container: never require host installs beyond Docker, make and git.
 - LocalStack needs `LOCALSTACK_AUTH_TOKEN` and the Docker socket (`/var/run/docker.sock`) mounted to run Lambdas.
 - If LocalStack does not support something, stop and report it. Switching to Floci needs Andrea's approval.
-- Public exposure uses the Cloudflare Tunnel already running on the host: route `files.<domain>` to
+- Public exposure is optional (the public demo was retired): if needed, route a Cloudflare Tunnel to
   `http://localhost:8000` (dashboard only).
 
 ## How we work (AI-first)

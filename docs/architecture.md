@@ -7,7 +7,7 @@
 | SFTPGo | container `sftpgo` | SFTP endpoint for partners (AWS Transfer Family stand-in). One user per partner, S3 backend with key prefix `inbound/<partner>/`. |
 | LocalStack | container `localstack` | S3, EventBridge, Step Functions, Lambda, DynamoDB, SQS, IAM, CloudWatch Logs. Lambdas run as sibling containers through the Docker socket. |
 | Lambdas | LocalStack | `extract_metadata`, `validate`, `route`, `quarantine` (Python 3.12, no third-party dependencies). |
-| Dashboard | container `dashboard` | Read-only FastAPI app; the only component published to the internet. |
+| Dashboard | container `dashboard` | Read-only FastAPI app on `localhost:8000`; the only component that may be published (optional tunnel). |
 | pfg | `tools` container | CLI that onboards partners (DynamoDB + S3 + SFTPGo REST API). |
 | cloudflared | container (optional) | Only if no Cloudflare Tunnel runs on the host. |
 

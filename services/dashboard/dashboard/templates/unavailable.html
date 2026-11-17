@@ -3,7 +3,7 @@
 {% block content %}
 <section class="panel">
   <h1>The pipeline is not reachable yet</h1>
-  <p>The dashboard could not read the audit trail ({{ error }}). The demo is probably restarting; try again in a few minutes.</p>
-  <p>The source code, the architecture and a local quickstart are on <a href="https://github.com/andrea-claro/partner-file-gateway">GitHub</a>.</p>
+  <p>The dashboard could not read the audit trail ({{ error }}).</p>
+  <p>LocalStack keeps no state across restarts: run <code>make demo</code> to re-create the infrastructure and the demo partner.</p>
 </section>
 {% endblock %}

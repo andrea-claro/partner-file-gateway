@@ -9,7 +9,7 @@ Build, AI-first, a small B2B managed file transfer (MFT) platform with the archi
 partners upload over SFTP/FTPS, files land in S3, an event-driven pipeline validates, routes and audits
 every file, and a dashboard shows what happened.
 
-Everything runs locally at zero cost. The only public part is a read-only dashboard exposed through Cloudflare Tunnel.
+Everything runs locally at zero cost. The read-only dashboard is the only part that can be published (optional Cloudflare Tunnel).
 
 What the project must prove to a reviewer:
 
@@ -24,9 +24,9 @@ What the project must prove to a reviewer:
 
 - **Zero cloud cost.** No paid AWS resources; managed services are emulated locally.
 - **Host:** MacBook Pro (Intel x64) with Docker Desktop.
-- **Exposure:** Cloudflare Tunnel on the existing Cloudflare domain; no inbound ports opened.
+- **Exposure (optional):** Cloudflare Tunnel on the existing Cloudflare domain; no inbound ports opened.
 - **Public surface:** dashboard only. SFTP, SFTPGo admin and LocalStack stay on localhost.
-- **Timeline:** public demo ready by Mon 23 Nov.
+- **Timeline:** first release by Mon 23 Nov.
 - **Neutral branding:** no employer names or logos anywhere in the project.
 
 ## 3. Architecture
@@ -52,7 +52,7 @@ EventBridge rule ──► Step Functions "process-transfer"
         ▼
 DynamoDB: partners, transfers        SQS: partner-notifications (+ DLQ)
         ▼
-Dashboard (FastAPI) ──► Cloudflare Tunnel ──► https://files.<domain>
+Dashboard (FastAPI) ──► Cloudflare Tunnel (optional) ──► https://files.<domain>
 ```
 
 ### AWS service → local stand-in
@@ -140,22 +140,23 @@ Every task is implemented by an AI coding agent from this plan, reviewed by Andr
 - [x] 4.2 "Simulate a partner upload" button: server-side SFTP upload (paramiko) of a random valid or invalid sample; rate-limited per IP.
 - [x] 4.3 Read-only by design; `/healthz`.
 - [x] 4.4 Cloudflare Tunnel (already running on the host, remotely managed) → route `files.<domain>` → `http://localhost:8000` (dashboard only). Bundled `cloudflared` container optional.
-- [x] 4.5 Keep the Mac awake while the demo is shared; `restart: unless-stopped` in compose.
+- [x] 4.5 `restart: unless-stopped` in compose.
 - **Acceptance:** public URL loads over HTTPS; a simulated upload appears within seconds; nothing else reachable from outside.
+- **Update 17 Nov:** the public demo was retired because the laptop could not sustain the load. The dashboard runs locally; publishing it stays optional (README, "Publishing the dashboard").
 
 ### Phase 5 — CI/CD, docs, polish (Sun 22 – Mon 23 Nov)
 
 - [x] 5.1 GitHub Actions: `lint` (ruff, terraform fmt, tflint), `security` (checkov), `unit` (pytest + moto), `validate-aws` (terraform validate on `envs/aws`), `e2e` (LocalStack, token as secret). Without the secret the e2e job skips and e2e runs locally (§6 cut line).
 - [x] 5.2 `infra/envs/aws`: Transfer Family SFTP server, users with SSH keys and scoped IAM role; reuses the other modules.
-- [x] 5.3 README: what it is, architecture diagram, AWS → local mapping, 3-command quickstart, live demo link, screenshots.
+- [x] 5.3 README: what it is, architecture diagram, AWS → local mapping, 3-command quickstart, screenshots.
 - [x] 5.4 `docs/how-this-was-built.md`: agent workflow, review checklist, concrete examples of AI output corrected or rejected and why.
 - [x] 5.5 ADR-001 to ADR-005.
 - **Acceptance:** all CI jobs green on `main`; a reviewer understands the project in two minutes from the README.
 
 ### Phase 6 — Publish (Tue 24 – Wed 25 Nov)
 
-- [x] 6.1 Publish the repository on GitHub and add the live demo link to the README.
-- [x] 6.2 Final check of the public demo.
+- [x] 6.1 Publish the repository on GitHub.
+- ~~6.2 Final check of the public demo.~~ Dropped with the public demo (see Phase 4).
 
 ## 6. Cut line
 
