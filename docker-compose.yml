@@ -5,8 +5,8 @@
 #   make test ...  tools container (profile "tools")
 #
 # Exposure rules (CLAUDE.md): every published port binds to 127.0.0.1. Only the
-# dashboard is meant to be reachable from the internet, through Cloudflare
-# Tunnel. Secrets come from .env (gitignored) and .secrets/ (gitignored).
+# dashboard may be published, through an optional Cloudflare Tunnel. Secrets
+# come from .env (gitignored) and .secrets/ (gitignored).
 name: pfg
 
 x-localstack-aws-env: &localstack-aws-env

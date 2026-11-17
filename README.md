@@ -3,8 +3,6 @@
 [![ci](https://github.com/andrea-claro/partner-file-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/andrea-claro/partner-file-gateway/actions/workflows/ci.yml)
 [![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
-**Live demo: <https://file-gtw-lab.clarotech.net>**
-
 A small B2B **managed file transfer** platform with the architecture of AWS
 Transfer Family, running entirely on one machine at zero cloud cost.
 
@@ -12,7 +10,7 @@ Partners upload files over SFTP with key-only authentication. Files land in S3,
 and an event-driven pipeline (EventBridge → Step Functions → Lambda) fingerprints
 and validates every file, delivers it to `processed/` or moves it to
 `quarantine/`, writes an audit trail to DynamoDB and publishes a notification to
-SQS. A read-only dashboard shows what happened and lets visitors trigger a real
+SQS. A read-only dashboard shows what happened and lets you trigger a real
 upload.
 
 The project is a lab built **AI-first**: coding agents implement tasks from
@@ -20,21 +18,21 @@ The project is a lab built **AI-first**: coding agents implement tasks from
 process, with the mistakes the review caught, is in
 [How this was built](docs/how-this-was-built.md).
 
-## Try the live demo
+## See it in action
 
-1. Open <https://file-gtw-lab.clarotech.net>.
-2. Press **Simulate a partner upload**. The server uploads one of the bundled
+After the [quickstart](#quickstart), open the dashboard at <http://localhost:8000>:
+
+1. Press **Simulate a partner upload**. The server uploads one of the bundled
    sample files over SFTP as the demo partner; about 7 in 10 are valid.
-3. Within a few seconds the file appears under **Latest transfers** as
+2. Within a few seconds the file appears under **Latest transfers** as
    `DELIVERED`, or as `REJECTED` with the reason (wrong file name, bad schema…).
-4. Click the file name to see its **audit trail**: every status change with its
+3. Click the file name to see its **audit trail**: every status change with its
    timestamp, the SHA-256 fingerprint and where the file was moved.
-5. **Partners** lists the onboarded partners with their allowed file patterns,
+4. **Partners** lists the onboarded partners with their allowed file patterns,
    size limits and SSH key fingerprints.
 
-The demo runs on a single laptop behind Cloudflare Tunnel, uses fictitious data
-and is read-only apart from the rate-limited simulate button. If it is offline,
-the [quickstart](#quickstart) runs the same stack locally.
+The dashboard uses fictitious data and is read-only apart from the rate-limited
+simulate button.
 
 | Overview | Transfer audit trail |
 |---|---|
@@ -49,7 +47,7 @@ the [quickstart](#quickstart) runs the same stack locally.
 | AWS managed file transfer architecture: Transfer Family-style SFTP, S3, EventBridge, Step Functions, Lambda, DynamoDB, SQS | [Architecture](docs/architecture.md), [state machine](statemachine/process_transfer.asl.json) |
 | Infrastructure as Code: reusable Terraform modules, a LocalStack target and a real-AWS target that is validated but never applied | [`infra/`](infra), [ADR-005](docs/adr/ADR-005-two-terraform-targets.md) |
 | Automated partner onboarding and SSH key rotation | [`cli/pfg`](cli/pfg), [lifecycle e2e tests](tests/e2e/test_partner_lifecycle.py) |
-| Security by default: key-only SFTP, least-privilege IAM, encryption, audit trail, one public endpoint | [Security and compliance](#security-and-compliance) |
+| Security by default: key-only SFTP, least-privilege IAM, encryption, audit trail, a single publishable endpoint | [Security and compliance](#security-and-compliance) |
 | Reliability: idempotent processing, retries, dead-letter queue | [ADR-004](docs/adr/ADR-004-idempotency.md), [Architecture](docs/architecture.md#idempotency) |
 | CI/CD with lint, policy as code (checkov), secret scanning and tests | [`ci.yml`](.github/workflows/ci.yml) |
 | AI-first engineering with human review | [How this was built](docs/how-this-was-built.md) |
@@ -68,7 +66,7 @@ flowchart LR
     SFN -- "audit trail" --> DDB[(DynamoDB<br/>partners, transfers)]
     SFN -- "outcome" --> SQS[[SQS<br/>partner-notifications + DLQ]]
     DDB --> D[Dashboard<br/>FastAPI + HTMX]
-    D -- "Cloudflare Tunnel" --> W((Internet))
+    D -. "optional Cloudflare Tunnel" .-> W((Internet))
 ```
 
 | Target AWS service | Local stand-in | Notes |
@@ -135,7 +133,7 @@ make pfg ARGS="partner list"
   with rotation in `envs/aws`. TLS-only bucket policy, public access blocked.
 - **Audit trail**: every transfer has a status history in DynamoDB; Lambdas log
   one JSON line per event with the `transfer_id`.
-- **Small public surface**: only the dashboard is published (Cloudflare Tunnel).
+- **Small public surface**: only the dashboard can be published (optional Cloudflare Tunnel).
   SFTP, the SFTPGo admin API and LocalStack bind to `127.0.0.1`. The dashboard is
   read-only, sends a strict CSP and rate-limits the upload simulator.
 - **No secrets in git**: see below.
@@ -152,22 +150,21 @@ make pfg ARGS="partner list"
 `make hooks` installs a pre-commit hook that refuses `.env`/`.secrets/` files and
 runs gitleaks on staged changes; CI runs gitleaks on the full history.
 
-## Publishing the dashboard
+## Publishing the dashboard (optional)
 
-Only the dashboard should be reachable from the internet. With a Cloudflare
-Tunnel already running on the host, add a *Published application* route:
-`files.<your-domain>` → `http://localhost:8000`. The live demo at
-<https://file-gtw-lab.clarotech.net> is published exactly this way. Never route ports 2022, 8080 or
-4566. Without a host tunnel, set `TUNNEL_TOKEN` in `.env` and run `make tunnel`
-(the bundled `cloudflared` sits on a network that contains only the dashboard).
+The stack runs locally by default. To share the dashboard, publish only the
+dashboard: with a Cloudflare Tunnel already running on the host, add a
+*Published application* route `files.<your-domain>` → `http://localhost:8000`.
+Never route ports 2022, 8080 or 4566. Without a host tunnel, set `TUNNEL_TOKEN`
+in `.env` and run `make tunnel` (the bundled `cloudflared` sits on a network that
+contains only the dashboard).
 
 ## Operating notes
 
 - LocalStack's free Hobby plan keeps no state across restarts. After a restart
   of the machine or of Docker, run `make demo` again: Terraform and the demo
   partner are re-created idempotently (the transfer history starts empty).
-- The demo is only online while the host is awake; `restart: unless-stopped`
-  brings the containers back after Docker restarts.
+- `restart: unless-stopped` brings the containers back after Docker restarts.
 
 ## Development
 

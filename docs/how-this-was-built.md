@@ -179,3 +179,23 @@ keeping the four commits separate.
 
 **Human review.** I read every sentence of the review notes above before
 committing them, and checked the CI results on GitHub myself.
+
+### 2026-11-17 — Public demo retired
+
+**Decision.** Andrea stopped exposing the dashboard: the laptop that runs the
+whole stack could not sustain the load of a public URL. Only the repository is
+shared now; the dashboard runs locally after the quickstart.
+
+**Produced.**
+- README: the live demo link and walkthrough replaced by a local walkthrough
+  (`http://localhost:8000`); publishing the dashboard is documented as optional.
+- PLAN.md: 4.5 reduced to the restart policy, 6.2 dropped, an update note under
+  Phase 4. CLAUDE.md, the architecture page, the compose file and
+  `.env.example` no longer describe the dashboard as published.
+- The "not reachable" page tells the developer to run `make demo` again,
+  instead of addressing public visitors.
+- Kept: the optional `cloudflared` profile, `make tunnel`, the dashboard's rate
+  limiting and CSP. They cost nothing and keep the dashboard safe to publish.
+
+**Human review.** I stopped exposing the service because my laptop could not
+handle the load, and I share only the repository, which explains what was built.
