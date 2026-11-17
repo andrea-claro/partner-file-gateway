@@ -140,22 +140,22 @@ Every task is implemented by an AI coding agent from this plan, reviewed by Andr
 - [x] 4.2 "Simulate a partner upload" button: server-side SFTP upload (paramiko) of a random valid or invalid sample; rate-limited per IP.
 - [x] 4.3 Read-only by design; `/healthz`.
 - [x] 4.4 Cloudflare Tunnel (already running on the host, remotely managed) → route `files.<domain>` → `http://localhost:8000` (dashboard only). Bundled `cloudflared` container optional.
-- [ ] 4.5 Keep the Mac awake while the demo is shared; `restart: unless-stopped` in compose.
+- [x] 4.5 Keep the Mac awake while the demo is shared; `restart: unless-stopped` in compose.
 - **Acceptance:** public URL loads over HTTPS; a simulated upload appears within seconds; nothing else reachable from outside.
 
 ### Phase 5 — CI/CD, docs, polish (Sun 22 – Mon 23 Nov)
 
-- [ ] 5.1 GitHub Actions: `lint` (ruff, terraform fmt, tflint), `security` (checkov), `unit` (pytest + moto), `validate-aws` (terraform validate on `envs/aws`), `e2e` (LocalStack, token as secret).
+- [x] 5.1 GitHub Actions: `lint` (ruff, terraform fmt, tflint), `security` (checkov), `unit` (pytest + moto), `validate-aws` (terraform validate on `envs/aws`), `e2e` (LocalStack, token as secret). Without the secret the e2e job skips and e2e runs locally (§6 cut line).
 - [x] 5.2 `infra/envs/aws`: Transfer Family SFTP server, users with SSH keys and scoped IAM role; reuses the other modules.
 - [x] 5.3 README: what it is, architecture diagram, AWS → local mapping, 3-command quickstart, live demo link, screenshots.
-- [ ] 5.4 `docs/how-this-was-built.md`: agent workflow, review checklist, concrete examples of AI output corrected or rejected and why.
+- [x] 5.4 `docs/how-this-was-built.md`: agent workflow, review checklist, concrete examples of AI output corrected or rejected and why.
 - [x] 5.5 ADR-001 to ADR-005.
 - **Acceptance:** all CI jobs green on `main`; a reviewer understands the project in two minutes from the README.
 
 ### Phase 6 — Publish (Tue 24 – Wed 25 Nov)
 
 - [x] 6.1 Publish the repository on GitHub and add the live demo link to the README.
-- [ ] 6.2 Final check of the public demo.
+- [x] 6.2 Final check of the public demo.
 
 ## 6. Cut line
 
