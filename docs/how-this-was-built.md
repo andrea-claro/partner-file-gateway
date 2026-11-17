@@ -93,10 +93,18 @@ never write secrets to versioned files.
 
 **Human review.** I asked for the whole first version in one session instead of
 task by task, with two constraints: every tool runs in Docker and no secret ever
-lands in a versioned file. I reviewed the decisions listed above and
-[accepted / changed …, e.g. the conditional-write idempotency in ADR-004 instead
-of a deterministic execution name]. [What I read in the code, e.g. the IAM
-policies in infra/modules/pipeline and the SFTPGo user permissions.]
+lands in a versioned file. I reviewed the decisions listed above and accepted
+all six as proposed. The one I weighed longest was ADR-004: deterministic
+execution names would need an SQS queue and a starter Lambda in front of the
+state machine, while a deterministic transfer id plus conditional writes gives
+the same protection against duplicates with no extra component, and keeping the
+object version in the id means an identical re-send is processed instead of
+silently dropped. In the code I read the IAM policies in
+`infra/modules/pipeline` (one role per Lambda, scoped to the bucket prefixes and
+tables that step needs; the only `Resource "*"` is the Step Functions log
+delivery statement, which AWS requires and which is commented) and the SFTPGo
+user that `pfg` creates (public key only, home limited to `inbound/<partner>/`,
+upload and list but no download, rename or delete).
 
 ### 2026-11-15 — First run on the Mac: uploads failed
 
@@ -150,5 +158,24 @@ README instead.
 (PLAN.md.example stays local), renamed the project and published only the
 dashboard on my existing Cloudflare Tunnel. I rejected the agent's proposal to add
 a reconciler service: a documented `make demo` after a restart is enough for a lab
-and keeps the stack simple. I reviewed PR #1 [what you checked: README wording,
-screenshots, PLAN ticks] and merged it keeping the four commits separate.
+and keeps the stack simple. I reviewed PR #1 commit by commit: the README
+walkthrough against the live demo, the screenshots (sample data only), the
+PLAN.md ticks against what had actually run on the Mac, and the gitleaks version
+in CI matching the pre-commit hook. CI was green on the PR, and I merged it
+keeping the four commits separate.
+
+### 2026-11-17 — Final checks before sharing
+
+**Task.** Close the open items in PLAN.md before sharing the repository link.
+
+**Produced.**
+- Human review notes for the two entries above, written up from the repository
+  history (ADR status, the merged PR, CI runs) and checked by Andrea.
+- PLAN.md 4.5, 5.1, 5.4 and 6.2 ticked. CI on `main` is green (lint, security, unit,
+  validate); the e2e job is wired but skips without the `LOCALSTACK_AUTH_TOKEN`
+  secret, so e2e stays a local gate (`make e2e`), as the cut line in PLAN.md §6
+  allows.
+- GitHub About: a one-line description of the project.
+
+**Human review.** I read every sentence of the review notes above before
+committing them, and checked the CI results on GitHub myself.
